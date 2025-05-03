@@ -3,66 +3,59 @@ import java.net.*;
 import java.util.Scanner;
 
 public class ChatClient {
-    private static final String SERVER_ADDRESS = "localhost";
-    private static final int SERVER_PORT = 12345;
-
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
+        try (Socket socket = new Socket("localhost", 12345);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+             Scanner scanner = new Scanner(System.in)) {
 
-        System.out.print("Введите ваше имя: ");
-        String name = scanner.nextLine();
+            new Thread(() -> {
+                try {
+                    String serverResponse;
+                    while ((serverResponse = in.readLine()) != null) {
+                        if (serverResponse.startsWith("PRIVATE_MSG")) {
+                            System.out.println("\n" + serverResponse.substring(12));
+                        }
+                        else if (serverResponse.startsWith("HISTORY_START")) {
+                            System.out.println("\n--- История переписки ---");
+                        }
+                        else if (serverResponse.startsWith("HISTORY_LINE")) {
+                            System.out.println(serverResponse.substring(12));
+                        }
+                        else if (serverResponse.startsWith("HISTORY_END")) {
+                            System.out.println("--- Конец истории ---\n");
+                        }
+                        else if (serverResponse.startsWith("HISTORY_EMPTY")) {
+                            System.out.println("\nУ вас еще нет истории переписки с этим пользователем\n");
+                        }
+                        else if (serverResponse.startsWith("SERVER_MSG")) {
+                            System.out.println(serverResponse.substring(11));
+                        }
+                        else if (serverResponse.startsWith("AUTH_")) {
+                            System.out.println(serverResponse.substring(10));
+                        }
+                        else if (serverResponse.startsWith("OFFLINE_MSG")) {
+                            System.out.println("\n" + serverResponse.substring(12));
+                        }
+                        else if (serverResponse.startsWith("ОШИБКА")) {
+                            System.out.println(serverResponse);
+                        }
+                    }
+                } catch (IOException e) {
+                    System.out.println("Соединение с сервером прервано");
+                }
+            }).start();
 
-        try {
-            Socket socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
-            System.out.println("Подключено к серверу чата. Можете начинать общение.");
-
-            // Поток для отправки сообщений
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-
-            // Отправляем имя серверу
-            out.println(name);
-
-            // Поток для получения сообщений
-            new Thread(new MessageReader(socket)).start();
-
-            // Чтение сообщений с консоли и отправка на сервер
-            String userInput;
             while (true) {
-                userInput = scanner.nextLine();
-                out.println(userInput);
+                String input = scanner.nextLine();
+                out.println(input);
 
-                if ("/exit".equalsIgnoreCase(userInput)) {
+                if ("/exit".equalsIgnoreCase(input)) {
                     break;
                 }
             }
-
-            socket.close();
-            scanner.close();
         } catch (IOException e) {
-            System.err.println("Ошибка в клиенте: " + e.getMessage());
-        }
-    }
-
-    private static class MessageReader implements Runnable {
-        private Socket socket;
-
-        public MessageReader(Socket socket) {
-            this.socket = socket;
-        }
-
-        @Override
-        public void run() {
-            try {
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(socket.getInputStream()));
-
-                String serverResponse;
-                while ((serverResponse = in.readLine()) != null) {
-                    System.out.println(serverResponse);
-                }
-            } catch (IOException e) {
-                System.out.println("Соединение с сервером прервано.");
-            }
+            System.err.println("Ошибка клиента: " + e.getMessage());
         }
     }
 }
