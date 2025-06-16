@@ -2,4 +2,6 @@
 /shelf/
 /.idea/workspace.xml
 *.db
-/target/
+client/target/
+server/target
+target/
